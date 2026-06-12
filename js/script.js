@@ -1326,7 +1326,6 @@ document.getElementById('team-mode-toggle').onclick = function() {
     else if (!sameTeamMode && p2UnstickUsed) document.getElementById('p2-unstick').classList.add('disabled');
 
     document.getElementById('reset-btn').click();
-    document.getElementById('bad-apple').click();
 };
 document.getElementById('p1-input-toggle').onclick = function() {
     p1Input = p1Input === 'keyboard' ? 'keyboard2' : p1Input === 'keyboard2' ? 'controller' : 'keyboard';
