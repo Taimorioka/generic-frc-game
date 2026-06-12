@@ -30,7 +30,7 @@ canvas.height = FIELD_H + (WALL_VISUAL * 2);
 
 let matchRunning = false, startCountdown = 0, countdownInterval = null, matchElapsed = 0, endCooldown = 0;
 let autoPhaseEnded = false, autoWinner = 'red', autoScoreRed = 0, autoScoreBlue = 0;
-let hubRedActive = true, hubBlueActive = true, currentPhaseIdx = -1;
+let currentPhaseIdx = -1;
 let sameTeamMode = false;
 let p2Enabled = true;
 let p1Input = 'keyboard';
@@ -51,8 +51,6 @@ const keys = {};
 
 window.matchRunning = matchRunning;
 window.currentPhaseIdx = currentPhaseIdx;
-window.hubRedActive = hubRedActive;
-window.hubBlueActive = hubBlueActive;
 window.matchElapsed = matchElapsed;
 window.autoPhaseEnded = autoPhaseEnded;
 window.autoWinner = autoWinner;
@@ -277,7 +275,7 @@ function update() {
         zones.forEach(z => {
             if (z.type === 'hub' && z.side === p.owner && !p.isPass && Math.hypot(p.x-(z.x+z.w/2), p.y-(z.y+z.h/2)) < HUB_S/2) {
                 scoringBalls.push({ exitTime: now + 300, hubX: z.x, hubY: z.y, side: z.side }); scored = true;
-                let isHubActive = p.owner === 'red' ? hubRedActive : hubBlueActive;
+                let isHubActive = p.owner === 'red' ? window.hubRedActive : window.hubBlueActive;
                 if (matchRunning && isHubActive) {
                     if(p.owner === 'red') { scoreRed++; document.getElementById('scoreRedDisplay').innerText = scoreRed; if (!autoPhaseEnded) autoScoreRed++; }
                     else { scoreBlue++; document.getElementById('scoreBlueDisplay').innerText = scoreBlue; if (!autoPhaseEnded) autoScoreBlue++; }
@@ -304,7 +302,7 @@ function draw() {
     zones.forEach(z => {
         const c = z.side === 'red' ? '239, 68, 68' : '59, 130, 246';
         if (z.type === 'hub') {
-            const act = matchRunning ? (z.side === 'red' ? hubRedActive : hubBlueActive) : true;
+            const act = matchRunning ? (z.side === 'red' ? window.hubRedActive : window.hubBlueActive) : true;
             ctx.globalAlpha = act ? 1.0 : 0.4;
             ctx.strokeStyle = `rgb(${c})`;
             ctx.lineWidth = 4;
