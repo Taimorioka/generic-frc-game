@@ -75,8 +75,8 @@ function buildLane(x, hubY, side, isTop) {
 }
 
 function initField() {
-    obstacles = [];
-    zones = [];
+    obstacles.length = 0;
+    zones.length = 0;
     addElement(156.61 * S, FIELD_H/2 - HUB_S/2, HUB_S, HUB_S, 'hub', 'red');
     buildLane(156.61 * S, FIELD_H/2 - HUB_S/2, 'red', true);
     buildLane(156.61 * S, FIELD_H/2 - HUB_S/2, 'red', false);
