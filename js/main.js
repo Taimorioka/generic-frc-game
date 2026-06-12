@@ -7,13 +7,19 @@ import {
     MATCH_PHASES, SHIFT_STATES, START_LABELS
 } from './constants.js';
 import {
+    obstacles, zones, initField,
+    getRedStartPos, getBlueStartPos,
+    getCenterBallPositions, getDepotBallPositions
+} from './field.js';
+import {
     getOBB,
     getOBB_AABB,
     collideOBB_AABB,
     collideOBB_OBB,
     circleOBBCollision,
     circleRectCollision,
-    resolveBallCollision
+    resolveBallCollision,
+    resolveCollisionRobots,
 } from './physics.js';
 import { tickMatch, updateHubUI, updateHudBar, triggerShiftFlash, getPulseColor } from './timer.js';
 
@@ -39,7 +45,7 @@ let gamepadStatusDiv = null;
 
 let botRed = new Robot(80, FIELD_H/2 - 14, '2910', 0);
 let botBlue = new Robot(FIELD_W - 115, FIELD_H/2 - 14, '2910', Math.PI);
-let balls = [], projectiles = [], scoringBalls = [], obstacles = [], zones = [];
+let balls = [], projectiles = [], scoringBalls = []
 let scoreRed = 0, scoreBlue = 0;
 const keys = {};
 
@@ -74,42 +80,21 @@ function buildLane(x, hubY, side, isTop) {
     addElement(x + (BUMP_W/2) - (15 * S), isTop ? barY - TRENCH_L : barY + BAR_L, 30 * S, TRENCH_L, 'trench', side);
 }
 
-function initField() {
-    obstacles.length = 0;
-    zones.length = 0;
-    addElement(156.61 * S, FIELD_H/2 - HUB_S/2, HUB_S, HUB_S, 'hub', 'red');
-    buildLane(156.61 * S, FIELD_H/2 - HUB_S/2, 'red', true);
-    buildLane(156.61 * S, FIELD_H/2 - HUB_S/2, 'red', false);
-    addElement(0, TOWER_OFFSET, TOWER_DIM, TOWER_DIM, 'tower', 'red');
-    addElement(TOWER_DIM - TOWER_WALL_DEPTH, TOWER_OFFSET, TOWER_WALL_DEPTH, TOWER_DIM, 'towerWall', 'red');
-    addElement(FIELD_W - (156.61 * S) - HUB_S, FIELD_H/2 - HUB_S/2, HUB_S, HUB_S, 'hub', 'blue');
-    buildLane(FIELD_W - (156.61 * S) - BUMP_W, FIELD_H/2 - HUB_S/2, 'blue', true);
-    buildLane(FIELD_W - (156.61 * S) - BUMP_W, FIELD_H/2 - HUB_S/2, 'blue', false);
-    addElement(FIELD_W - TOWER_DIM, FIELD_H - TOWER_OFFSET - TOWER_DIM, TOWER_DIM, TOWER_DIM, 'tower', 'blue');
-    addElement(FIELD_W - TOWER_DIM, FIELD_H - TOWER_OFFSET - TOWER_DIM, TOWER_WALL_DEPTH, TOWER_DIM, 'towerWall', 'blue');
-    let redDepotY = (82.32 * S) - (DEPOT_H / 2);
-    let blueDepotY = FIELD_H - (82.32 * S) - (DEPOT_H / 2);
-    addElement(0, redDepotY, DEPOT_W, DEPOT_H, 'depot', 'red');
-    addElement(FIELD_W - DEPOT_W, blueDepotY, DEPOT_W, DEPOT_H, 'depot', 'blue');
-}
-
 function spawnBalls() {
     balls = [];
-    let sx = (FIELD_W/2) - (12*BALL_R*2)/2 + BALL_R, sy = (FIELD_H/2) - (30*BALL_R*2)/2 + BALL_R;
-    for (let r=0; r<30; r++) {
-        if (r >= 14 && r <= 15) continue;
-        for (let c=0; c<12; c++) balls.push({ x: sx+(c*BALL_R*2), y: sy+(r*BALL_R*2), r: BALL_R, vx: 0, vy: 0, isStatic: true, frictionMod: 1.0, wasOnBump: false, owner: null });
+    for (let pos of getCenterBallPositions()) {
+        balls.push({
+            x: pos.x, y: pos.y, r: BALL_R,
+            vx: 0, vy: 0, isStatic: true,
+            frictionMod: 1.0, wasOnBump: false, owner: null
+        });
     }
-    let redDepotY = (82.32 * S) - (DEPOT_H / 2);
-    let blueDepotY = FIELD_H - (82.32 * S) - (DEPOT_H / 2);
-    let blueDepotX = FIELD_W - DEPOT_W;
-    let xStep = DEPOT_W / 4;
-    let yStep = DEPOT_H / 6;
-    for (let r = 0; r < 6; r++) {
-        for (let c = 0; c < 4; c++) {
-            balls.push({ x: c * xStep + xStep/2, y: redDepotY + r * yStep + yStep/2, r: BALL_R, vx: 0, vy: 0, isStatic: true, frictionMod: 1.0, wasOnBump: false, owner: null });
-            balls.push({ x: blueDepotX + c * xStep + xStep/2, y: blueDepotY + r * yStep + yStep/2, r: BALL_R, vx: 0, vy: 0, isStatic: true, frictionMod: 1.0, wasOnBump: false, owner: null });
-        }
+    for (let pos of getDepotBallPositions()) {
+        balls.push({
+            x: pos.x, y: pos.y, r: BALL_R,
+            vx: 0, vy: 0, isStatic: true,
+            frictionMod: 1.0, wasOnBump: false, owner: null
+        });
     }
 }
 
@@ -147,46 +132,20 @@ function getInputs(type, playerId) {
     return {x, y, rot, act, toggleIn};
 }
 
-function getRedStartPos() {
-    let x = 156.61 * S - 45;
-    let y = FIELD_H/2 - 17.5;
-    if (p1StartIdx === 1) {
-        x = 156.61 * S - 20;
-        y = (FIELD_H/2 - HUB_S/2 - BUMP_L - BAR_L) - (TRENCH_L/2) - 17.5;
-    } else if (p1StartIdx === 2) {
-        x = 156.61 * S - 20;
-        y = (FIELD_H/2 + HUB_S/2 + BUMP_L + BAR_L) + (TRENCH_L/2) - 17.5;
-    }
-    return {x, y, a: 0};
-}
-
-function getBlueStartPos() {
-    if (sameTeamMode) {
-        let x = 156.61 * S - 45; let y = FIELD_H/2 + 20;
-        if (p2StartIdx === 1) { x = 156.61 * S - 20; y = (FIELD_H/2 - HUB_S/2 - BUMP_L - BAR_L) - (TRENCH_L/2) + 20; }
-        if (p2StartIdx === 2) { x = 156.61 * S - 20; y = (FIELD_H/2 + HUB_S/2 + BUMP_L + BAR_L) + (TRENCH_L/2) + 20; }
-        return {x, y, a: 0};
-    }
-    let x = FIELD_W - (156.61 * S) + 10;
-    let y = FIELD_H/2 - 17.5;
-    if (p2StartIdx === 1) {
-        x = FIELD_W - (156.61 * S) - 15;
-        y = (FIELD_H/2 - HUB_S/2 - BUMP_L - BAR_L) - (TRENCH_L/2) - 17.5;
-    } else if (p2StartIdx === 2) {
-        x = FIELD_W - (156.61 * S) - 15;
-        y = (FIELD_H/2 + HUB_S/2 + BUMP_L + BAR_L) + (TRENCH_L/2) - 17.5;
-    }
-    return {x, y, a: Math.PI};
-}
-
 function resetBots() {
-    let rPos = getRedStartPos();
-    botRed.x = rPos.x; botRed.y = rPos.y; botRed.vx=0; botRed.vy=0; botRed.vAngle=0; botRed.angle=rPos.a;
+    let rPos = getRedStartPos(p1StartIdx);
+    botRed.x = rPos.x; botRed.y = rPos.y;
+    botRed.vx = 0; botRed.vy = 0;
+    botRed.vAngle = 0;
+    botRed.angle = rPos.a;
     botRed.prevIntakeInput = false;
+
     if (p2Enabled) {
-        let bPos = getBlueStartPos();
-        botBlue.x = bPos.x; botBlue.y = bPos.y; botBlue.angle = bPos.a;
-        botBlue.vx=0; botBlue.vy=0; botBlue.vAngle=0;
+        let bPos = getBlueStartPos(p2StartIdx, sameTeamMode);
+        botBlue.x = bPos.x; botBlue.y = bPos.y;
+        botBlue.angle = bPos.a;
+        botBlue.vx = 0; botBlue.vy = 0;
+        botBlue.vAngle = 0;
         botBlue.prevIntakeInput = false;
     }
     p1FreezeUntil = 0; p2FreezeUntil = 0;
@@ -588,6 +547,8 @@ document.getElementById('reset-btn').onclick = () => {
 
 
 initField();
+window.zones = zones;
+window.obstacles = obstacles;
 spawnBalls();
 updateHubUI(false, false);
 setInterval(update, 1000/60);
